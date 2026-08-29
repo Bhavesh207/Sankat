@@ -1,0 +1,25 @@
+# Android/IntelliJ
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Node
+node_modules/
+npm-debug.log
+.env
+serviceAccountKey.json
+
+# Firebase Secret Key
+sanket-emergency-firebase-adminsdk-fbsvc-acdc97d067.json

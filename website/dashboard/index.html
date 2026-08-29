@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SANKET Rescue Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDFYEVqIfYU04ErAJ8S104uwjqHVp_7PRU&callback=initMap"></script>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="brand">
+            📡 SANKET
+        </div>
+        <ul class="nav-links">
+            <li class="active">📊 Dashboard</li>
+            <li>🚨 Incidents</li>
+            <li>🌐 Network</li>
+            <li>📡 Nodes</li>
+            <li>📝 Audit Log</li>
+        </ul>
+        <div class="sidebar-footer">
+            <div>Server Status: Online</div>
+            <div>Uptime: <span id="uptime">0h 0m</span></div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-title">Operations Center</div>
+            <div class="header-controls">
+                <div class="clock" id="live-clock">00:00:00</div>
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    Live Connection
+                </div>
+            </div>
+        </header>
+
+        <section class="dashboard-area">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-title">Total Incidents</div>
+                    <div class="stat-value" id="stat-total">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Critical</div>
+                    <div class="stat-value stat-critical" id="stat-critical">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Pending</div>
+                    <div class="stat-value stat-pending" id="stat-pending">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Acknowledged</div>
+                    <div class="stat-value stat-ack" id="stat-ack">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">Active Nodes</div>
+                    <div class="stat-value stat-nodes" id="stat-nodes">12</div>
+                </div>
+            </div>
+
+            <div id="map" class="map-container"></div>
+
+            <div class="incidents-container" id="incidents-list">
+                <div class="empty-state">Loading incidents...</div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
