@@ -1,4 +1,15 @@
 {
+  "version": 2,
+  "builds": [
+    {
+      "src": "website/backend/server.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "website/dashboard/**",
+      "use": "@vercel/static"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -9,8 +20,8 @@
       "destination": "/website/dashboard/index.html"
     },
     {
-      "source": "/:match*",
-      "destination": "/website/dashboard/:match*"
+      "source": "/(.*)",
+      "destination": "/website/dashboard/$1"
     }
   ]
 }
