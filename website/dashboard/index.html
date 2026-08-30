@@ -8,68 +8,207 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- ==================== SIDEBAR ==================== -->
     <aside class="sidebar">
-        <div class="brand">
-            SANKET
-        </div>
+        <div class="brand">SANKET</div>
         <ul class="nav-links">
-            <li class="active">Dashboard</li>
-            <li>Incidents</li>
-            <li>Network</li>
-            <li>Nodes</li>
-            <li>Audit Log</li>
+            <li class="active" data-panel="panel-dashboard">Operations Center</li>
+            <li data-panel="panel-history">Incident History</li>
+            <li data-panel="panel-audit">Audit Log</li>
         </ul>
         <div class="sidebar-footer">
-            <div>Server Status: Online</div>
-            <div>Uptime: <span id="uptime">0h 0m</span></div>
+            <div class="sf-row">
+                <span class="sf-label">Server</span>
+                <span class="sf-value" style="color:var(--accent-green)">Online</span>
+            </div>
+            <div class="sf-row">
+                <span class="sf-label">Uptime</span>
+                <span class="sf-value" id="uptime">0h 0m</span>
+            </div>
         </div>
     </aside>
 
+    <!-- ==================== MAIN ==================== -->
     <main class="main-content">
+
+        <!-- Header (always visible) -->
         <header class="header">
-            <div class="header-title">Operations Center</div>
+            <div class="header-title" id="header-title">Operations Center</div>
             <div class="header-controls">
                 <div class="clock" id="live-clock">00:00:00</div>
                 <div class="status-indicator">
                     <div class="status-dot"></div>
-                    Live Connection
+                    Live
                 </div>
             </div>
         </header>
 
-        <section class="dashboard-area">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-title">Total Incidents</div>
-                    <div class="stat-value" id="stat-total">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Critical</div>
-                    <div class="stat-value stat-critical" id="stat-critical">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Pending</div>
-                    <div class="stat-value stat-pending" id="stat-pending">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Acknowledged</div>
-                    <div class="stat-value stat-ack" id="stat-ack">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-title">Active Nodes</div>
-                    <div class="stat-value stat-nodes" id="stat-nodes">0</div>
-                </div>
-            </div>
+        <!-- ================== PANEL: Operations Center ================== -->
+        <section class="panel panel-active" id="panel-dashboard">
+            <div class="dashboard-area">
 
-            <div id="map" class="map-container"></div>
+                <!-- Stats row -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-title">Active Incidents</div>
+                        <div class="stat-value stat-active" id="stat-active">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">Critical Active</div>
+                        <div class="stat-value stat-critical" id="stat-critical">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">Resolved Today</div>
+                        <div class="stat-value stat-ack" id="stat-resolved-today">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">Resolved This Week</div>
+                        <div class="stat-value stat-ack" id="stat-resolved-week">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">Active Nodes</div>
+                        <div class="stat-value stat-nodes" id="stat-nodes">0</div>
+                    </div>
+                </div>
 
-            <div class="incidents-container" id="incidents-list">
-                <div class="empty-state">Loading incidents...</div>
+                <!-- Map -->
+                <div id="map" class="map-container"></div>
+
+                <!-- Active Incident List -->
+                <div class="section-header">
+                    <div class="section-title">Active Incidents</div>
+                    <div class="section-count" id="active-count-badge">0 requiring attention</div>
+                </div>
+                <div class="incidents-container" id="incidents-list">
+                    <div class="empty-state">Loading active incidents...</div>
+                </div>
+
             </div>
         </section>
+
+        <!-- ================== PANEL: Incident History ================== -->
+        <section class="panel" id="panel-history">
+            <div class="dashboard-area">
+                <div class="section-header">
+                    <div class="section-title">Incident History</div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filter-bar">
+                    <input type="text" id="hist-search" placeholder="Search ID or Device..." class="filter-input">
+                    <select id="hist-priority" class="filter-select">
+                        <option value="">All Priorities</option>
+                        <option value="CRITICAL">Critical</option>
+                        <option value="HIGH">High</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="LOW">Low</option>
+                    </select>
+                    <select id="hist-status" class="filter-select">
+                        <option value="">All Statuses</option>
+                        <option value="RESOLVED">Resolved</option>
+                        <option value="ARCHIVED">Archived</option>
+                        <option value="CANCELLED">Cancelled</option>
+                        <option value="FAILED">Failed</option>
+                        <option value="EXPIRED">Expired</option>
+                    </select>
+                    <select id="hist-date" class="filter-select">
+                        <option value="all">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="7days">Last 7 Days</option>
+                        <option value="30days">Last 30 Days</option>
+                    </select>
+                    <button class="btn btn-filter" id="hist-apply">Apply Filters</button>
+                    <button class="btn btn-filter-clear" id="hist-clear">Clear</button>
+                </div>
+
+                <div id="history-list" class="history-container">
+                    <div class="empty-state">Loading history...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================== PANEL: Audit Log ================== -->
+        <section class="panel" id="panel-audit">
+            <div class="dashboard-area">
+                <div class="section-header">
+                    <div class="section-title">Audit Log</div>
+                </div>
+
+                <!-- Audit Filters -->
+                <div class="filter-bar">
+                    <select id="audit-event-type" class="filter-select">
+                        <option value="">All Event Types</option>
+                        <option value="SOS_RECEIVED">SOS Received</option>
+                        <option value="INCIDENT_ACKNOWLEDGED">Acknowledged</option>
+                        <option value="TEAM_DISPATCHED">Team Dispatched</option>
+                        <option value="INCIDENT_RESOLVED">Resolved</option>
+                        <option value="INCIDENT_REOPENED">Reopened</option>
+                        <option value="LOCATION_UPDATED">Location Updated</option>
+                        <option value="STATUS_CHANGED">Status Changed</option>
+                    </select>
+                    <input type="text" id="audit-incident-id" placeholder="Incident ID..." class="filter-input">
+                    <input type="date" id="audit-date-from" class="filter-input" title="From date">
+                    <input type="date" id="audit-date-to"   class="filter-input" title="To date">
+                    <button class="btn btn-filter" id="audit-apply">Apply</button>
+                    <button class="btn btn-filter-clear" id="audit-clear">Clear</button>
+                </div>
+
+                <div class="audit-table-wrap">
+                    <table class="audit-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Event</th>
+                                <th>Incident</th>
+                                <th>Device</th>
+                                <th>Operator</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-tbody">
+                            <tr><td colspan="6" class="audit-empty">Loading audit log...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
     </main>
 
-    <!-- app.js MUST load before Google Maps so initMap is defined globally -->
+    <!-- ================== INCIDENT DETAIL MODAL ================== -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal()"></div>
+    <div class="modal" id="incident-modal">
+        <div class="modal-header">
+            <div class="modal-title" id="modal-title">Incident Details</div>
+            <button class="modal-close" onclick="closeModal()">X</button>
+        </div>
+        <div class="modal-body" id="modal-body">
+            <!-- Filled dynamically -->
+        </div>
+    </div>
+
+    <!-- ================== RESOLVE CONFIRM DIALOG ================== -->
+    <div class="modal-overlay" id="resolve-overlay" onclick="closeResolveDialog()"></div>
+    <div class="modal resolve-dialog" id="resolve-dialog">
+        <div class="modal-header">
+            <div class="modal-title">Confirm Resolution</div>
+        </div>
+        <div class="modal-body">
+            <p style="color:var(--text-primary);margin-bottom:16px;">
+                This will mark the incident as <strong style="color:var(--accent-green)">RESOLVED</strong> and remove it from the active dashboard.
+            </p>
+            <div class="form-group">
+                <label class="form-label">Operator ID</label>
+                <input type="text" id="resolve-operator" class="filter-input" placeholder="Enter your name or ID" value="admin">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-resolve" id="resolve-confirm-btn">Confirm Resolve</button>
+            <button class="btn btn-cancel" onclick="closeResolveDialog()">Cancel</button>
+        </div>
+    </div>
+
     <script src="app.js"></script>
     <script defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDFYEVqIfYU04ErAJ8S104uwjqHVp_7PRU&callback=initMap"></script>
 </body>
