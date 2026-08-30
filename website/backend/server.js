@@ -371,11 +371,15 @@ app.get('/api/nodes', async (req, res) => {
 });
 
 // ============================================================
-// Start Server
+// Start Server / Export for Serverless
 // ============================================================
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log('SANKET Backend Server running on http://0.0.0.0:' + PORT);
-    console.log('Dashboard: http://localhost:' + PORT);
-    console.log('Database: Firebase Firestore (sanket-emergency)');
-});
+if (require.main === module) {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log('SANKET Backend Server running on http://0.0.0.0:' + PORT);
+        console.log('Dashboard: http://localhost:' + PORT);
+        console.log('Database: Firebase Firestore (sanket-emergency)');
+    });
+}
+
+module.exports = app;
