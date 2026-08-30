@@ -1,22 +1,8 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const clockEl = document.getElementById('live-clock');
-    const incidentsListEl = document.getElementById('incidents-list');
-    
-    const statTotalEl = document.getElementById('stat-total');
-    const statCriticalEl = document.getElementById('stat-critical');
-    const statPendingEl = document.getElementById('stat-pending');
-    const statAckEl = document.getElementById('stat-ack');
-    const statNodesEl = document.getElementById('stat-nodes');
-    const uptimeEl = document.getElementById('uptime');
+let map;
+let markers = {};
+let currentPolyline = null;
 
-    let previousCriticalCount = 0;
-    const startTime = Date.now();
-
-    let map;
-    let markers = {};
-    let currentPolyline = null;
-
-    window.initMap = function() {
+window.initMap = function() {
         map = new google.maps.Map(document.getElementById('map'), {
             center: { lat: 26.9124, lng: 75.7873 },
             zoom: 13,
@@ -43,6 +29,26 @@ document.addEventListener('DOMContentLoaded', () => {
             ]
         });
     };
+
+document.addEventListener('DOMContentLoaded', () => {
+    const clockEl = document.getElementById('live-clock');
+    const incidentsListEl = document.getElementById('incidents-list');
+    
+    const statTotalEl = document.getElementById('stat-total');
+    const statCriticalEl = document.getElementById('stat-critical');
+    const statPendingEl = document.getElementById('stat-pending');
+    const statAckEl = document.getElementById('stat-ack');
+    const statNodesEl = document.getElementById('stat-nodes');
+    const uptimeEl = document.getElementById('uptime');
+
+    let previousCriticalCount = 0;
+    const startTime = Date.now();
+
+    
+    
+    
+
+    
 
     setInterval(() => {
         const now = new Date();
@@ -165,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const lat = inc.latitude || inc.location?.lat || 'N/A';
         const lng = inc.longitude || inc.location?.lng || 'N/A';
         const accuracy = inc.accuracy || inc.location?.accuracy || inc.location_accuracy;
-        const accuracyStr = accuracy ? `±${accuracy}m` : '';
+        const accuracyStr = accuracy ? `ï¿½${accuracy}m` : '';
 
         const newBadgeHtml = isNew ? `<span style="background: #4ade80; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; margin-left: 10px; animation: pulse 1.5s infinite;">NEW MESSAGE</span>` : '';
 
