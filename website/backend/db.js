@@ -53,37 +53,46 @@ async function getSOSById(messageId) {
 }
 
 async function getAllSOS() {
-    const snapshot = await sosCollection.orderBy('created_at', 'desc').get();
-    return snapshot.docs.map(doc => _convertDoc(doc));
+    const snapshot = await sosCollection.get();
+    const results = snapshot.docs.map(doc => _convertDoc(doc));
+    results.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    return results;
 }
 
 // Only PENDING / ACKNOWLEDGED / DISPATCHED
 async function getActiveSOS() {
     const snapshot = await sosCollection
         .where('status', 'in', ACTIVE_STATUSES)
-        .orderBy('created_at', 'desc')
         .get();
-    return snapshot.docs.map(doc => _convertDoc(doc));
+    const results = snapshot.docs.map(doc => _convertDoc(doc));
+    // Sort newest first in JS (avoids needing a Firestore composite index)
+    results.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    return results;
 }
 
 // Only RESOLVED / ARCHIVED / CANCELLED etc — supports optional filters
 async function getHistorySOS(filters = {}) {
-    let query = sosCollection.where('status', 'in', HISTORY_STATUSES);
+    // Fetch all history statuses — filter/sort in JS to avoid composite index requirements
+    const snapshot = await sosCollection.where('status', 'in', HISTORY_STATUSES).get();
+    let results = snapshot.docs.map(doc => _convertDoc(doc));
 
+    // Priority filter
     if (filters.priority) {
-        query = query.where('priority', '==', filters.priority.toUpperCase());
+        results = results.filter(r => (r.priority || '').toUpperCase() === filters.priority.toUpperCase());
     }
 
-    // Date range — resolvedAt
+    // Date range on resolvedAt — client side
     if (filters.dateFrom) {
-        query = query.where('resolvedAt', '>=', new Date(filters.dateFrom));
+        const from = new Date(filters.dateFrom).getTime();
+        results = results.filter(r => r.resolvedAt && new Date(r.resolvedAt).getTime() >= from);
     }
     if (filters.dateTo) {
-        query = query.where('resolvedAt', '<=', new Date(filters.dateTo));
+        const to = new Date(filters.dateTo).getTime() + 86400000;
+        results = results.filter(r => r.resolvedAt && new Date(r.resolvedAt).getTime() <= to);
     }
 
-    const snapshot = await query.orderBy('resolvedAt', 'desc').get();
-    let results = snapshot.docs.map(doc => _convertDoc(doc));
+    // Sort newest-resolved first
+    results.sort((a, b) => new Date(b.resolvedAt || b.created_at || 0) - new Date(a.resolvedAt || a.created_at || 0));
 
     // Client-side filters for text search (Firestore doesn't support contains)
     if (filters.search) {
