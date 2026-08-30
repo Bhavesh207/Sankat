@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -6,20 +6,18 @@
     <title>SANKET Rescue Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <script src="app.js"></script>
-    <script defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDFYEVqIfYU04ErAJ8S104uwjqHVp_7PRU&callback=initMap"></script>
 </head>
 <body>
     <aside class="sidebar">
         <div class="brand">
-            ðŸ“¡ SANKET
+            SANKET
         </div>
         <ul class="nav-links">
-            <li class="active">ðŸ“Š Dashboard</li>
-            <li>ðŸš¨ Incidents</li>
-            <li>ðŸŒ Network</li>
-            <li>ðŸ“¡ Nodes</li>
-            <li>ðŸ“ Audit Log</li>
+            <li class="active">Dashboard</li>
+            <li>Incidents</li>
+            <li>Network</li>
+            <li>Nodes</li>
+            <li>Audit Log</li>
         </ul>
         <div class="sidebar-footer">
             <div>Server Status: Online</div>
@@ -59,7 +57,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-title">Active Nodes</div>
-                    <div class="stat-value stat-nodes" id="stat-nodes">12</div>
+                    <div class="stat-value stat-nodes" id="stat-nodes">0</div>
                 </div>
             </div>
 
@@ -71,5 +69,8 @@
         </section>
     </main>
 
-    </body>
+    <!-- app.js MUST load before Google Maps so initMap is defined globally -->
+    <script src="app.js"></script>
+    <script defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDFYEVqIfYU04ErAJ8S104uwjqHVp_7PRU&callback=initMap"></script>
+</body>
 </html>
