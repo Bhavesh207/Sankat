@@ -1,23 +1,16 @@
 {
-  "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "website/backend/server.js",
-      "use": "@vercel/node"
+      "source": "/api/(.*)",
+      "destination": "/website/backend/server.js"
     },
     {
-      "src": "website/dashboard/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "website/backend/server.js"
+      "source": "/",
+      "destination": "/website/dashboard/index.html"
     },
     {
-      "src": "/(.*)",
-      "dest": "website/dashboard/$1"
+      "source": "/:match*",
+      "destination": "/website/dashboard/:match*"
     }
   ]
 }
