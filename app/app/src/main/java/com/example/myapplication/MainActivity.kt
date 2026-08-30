@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.location.LocationManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
@@ -75,6 +77,14 @@ class MainActivity : ComponentActivity() {
     private val nearbyEmergencies = mutableStateListOf<SOSMessage>()
     private val connectedNodes = mutableStateOf(0)
     private val isBluetoothActive = mutableStateOf(false)
+    private val isInternetAvailable = mutableStateOf(false)
+
+    private fun checkInternetConnectivity(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val capabilities = cm.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -159,6 +169,7 @@ class MainActivity : ComponentActivity() {
                         nearbyEmergencies = nearbyEmergencies,
                         connectedNodes = connectedNodes,
                         isBluetoothActive = isBluetoothActive,
+                        isInternetAvailable = isInternetAvailable,
                         batteryLevel = getBatteryLevel(),
                         toggleBluetooth = { toggleBluetoothService() }
                     )
@@ -186,6 +197,15 @@ class MainActivity : ComponentActivity() {
         locationProvider.requestLocationUpdates { loc ->
             locationState.value = loc
         }
+        // Start periodic internet check
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        val internetChecker = object : Runnable {
+            override fun run() {
+                isInternetAvailable.value = checkInternetConnectivity()
+                handler.postDelayed(this, 3000)
+            }
+        }
+        handler.post(internetChecker)
     }
 
     private fun toggleBluetoothService() {
@@ -229,6 +249,7 @@ fun EmergencyApp(
     nearbyEmergencies: List<SOSMessage>,
     connectedNodes: State<Int>,
     isBluetoothActive: State<Boolean>,
+    isInternetAvailable: State<Boolean>,
     batteryLevel: Int,
     toggleBluetooth: () -> Unit
 ) {
@@ -239,6 +260,7 @@ fun EmergencyApp(
     
     val sosHistory = remember { mutableStateListOf<SOSMessage>() }
     val coroutineScope = rememberCoroutineScope()
+    var selectedEmergency by remember { mutableStateOf<SOSMessage?>(null) }
     
     Scaffold(
         topBar = {
@@ -363,6 +385,54 @@ fun EmergencyApp(
                             }
                         }
                         
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Row 3: Internet Status
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Internet:", color = TextMuted, fontSize = 14.sp, fontFamily = FontFamily.Default)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isInternetAvailable.value) AccentGreen else AccentRed)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                if (isInternetAvailable.value) "ONLINE" else "OFFLINE",
+                                color = if (isInternetAvailable.value) AccentGreen else AccentRed,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = Mono
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Row 4: Gateway Status
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Gateway:", color = TextMuted, fontSize = 14.sp, fontFamily = FontFamily.Default)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            val gatewayStatus = when {
+                                isInternetAvailable.value -> "AVAILABLE"
+                                isBluetoothActive.value && connectedNodes.value > 0 -> "SEARCHING"
+                                isBluetoothActive.value -> "NOT AVAILABLE"
+                                else -> "DISABLED"
+                            }
+                            val gatewayColor = when(gatewayStatus) {
+                                "AVAILABLE" -> AccentGreen
+                                "SEARCHING" -> AccentYellow
+                                else -> AccentRed
+                            }
+                            Text(gatewayStatus, color = gatewayColor, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = Mono)
+                        }
+
                         Spacer(modifier = Modifier.height(12.dp))
                         HorizontalDivider(color = TextMuted.copy(alpha = 0.2f))
                         Spacer(modifier = Modifier.height(12.dp))
@@ -572,13 +642,17 @@ fun EmergencyApp(
                                         communicationManager.sendEmergencyMessage(msg) { success, status ->
                                             isSending = false
                                             if (success) {
-                                                statusText = "DELIVERED"
+                                                statusText = status
                                                 val index = sosHistory.indexOfFirst { it.message_id == msgId }
                                                 if (index != -1) {
-                                                    sosHistory[index] = sosHistory[index].copy(status = "DELIVERED")
+                                                    sosHistory[index] = sosHistory[index].copy(status = status)
                                                 }
                                             } else {
-                                                statusText = "QUEUED / $status"
+                                                statusText = status
+                                                val index = sosHistory.indexOfFirst { it.message_id == msgId }
+                                                if (index != -1) {
+                                                    sosHistory[index] = sosHistory[index].copy(status = status)
+                                                }
                                             }
                                         }
                                     }
@@ -672,15 +746,120 @@ fun EmergencyApp(
             if (nearbyEmergencies.isNotEmpty()) {
                 item {
                     // Item 7: Nearby Emergencies
-                    Text("NEARBY EMERGENCIES", color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Default)
+                    Text("NEARBY EMERGENCIES", color = AccentRed, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Default)
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 items(nearbyEmergencies) { item ->
-                    EmergencyCard(item)
+                    EmergencyCard(item, onTap = { selectedEmergency = item })
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
+    }
+
+    // Emergency Detail Dialog (Task 14)
+    if (selectedEmergency != null) {
+        val msg = selectedEmergency!!
+        val priorityColor = when(msg.priority) {
+            "CRITICAL" -> AccentRed
+            "HIGH" -> PriorityHigh
+            "MEDIUM" -> AccentYellow
+            "LOW" -> AccentBlue
+            else -> TextMuted
+        }
+        val statusColor = when(msg.status) {
+            "DELIVERED", "DELIVERED_TO_GATEWAY", "ACKNOWLEDGED", "FORWARDED" -> AccentGreen
+            "FAILED", "NO_ROUTE" -> AccentRed
+            else -> AccentYellow
+        }
+        AlertDialog(
+            onDismissRequest = { selectedEmergency = null },
+            containerColor = BgCard,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(priorityColor))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("EMERGENCY DETAILS", color = TextPrimary, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Default)
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    DetailRow("Victim", msg.source_device_id, AccentBlue)
+                    DetailRow("SOS ID", msg.message_id, TextPrimary)
+                    DetailRow("Priority", msg.priority, priorityColor)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Message box
+                    Surface(
+                        color = BgPrimary,
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("MESSAGE", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("\"${msg.message}\"", color = TextPrimary, fontSize = 14.sp, fontFamily = FontFamily.Monospace, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    if (msg.latitude != 0.0 && msg.longitude != 0.0) {
+                        Text("LAST KNOWN LOCATION", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("${"%.4f".format(msg.latitude)}, ${"%.4f".format(msg.longitude)}", color = AccentBlue, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                        Text("Accuracy: ±${msg.location_accuracy.toInt()}m", color = TextMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    } else {
+                        Text("LOCATION UNAVAILABLE", color = AccentRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = TextMuted.copy(alpha = 0.2f))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    DetailRow("Timestamp", msg.timestamp, TextPrimary)
+                    DetailRow("Received Via", "BLUETOOTH", AccentBlue)
+                    DetailRow("Hop Count", "${msg.hopCount}", TextPrimary)
+                    DetailRow("TTL", "${msg.ttl}", TextPrimary)
+                    DetailRow("Status", msg.status, statusColor)
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("ROUTE", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        msg.route.joinToString(" → "),
+                        color = AccentBlue,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            },
+            confirmButton = {
+                if (msg.latitude != 0.0 && msg.longitude != 0.0) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    Button(
+                        onClick = {
+                            val uri = android.net.Uri.parse("geo:${msg.latitude},${msg.longitude}?q=${msg.latitude},${msg.longitude}(Victim Location)")
+                            val mapIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                            mapIntent.setPackage("com.google.android.apps.maps")
+                            if (mapIntent.resolveActivity(context.packageManager) != null) {
+                                context.startActivity(mapIntent)
+                            } else {
+                                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+                    ) {
+                        Text("VIEW LOCATION", color = BgPrimary, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedEmergency = null }) {
+                    Text("CLOSE", color = TextMuted)
+                }
+            }
+        )
     }
 }
 
@@ -695,8 +874,8 @@ fun HistoryCard(message: SOSMessage) {
     }
     
     val statusColor = when(message.status) {
-        "DELIVERED", "ACKNOWLEDGED" -> AccentGreen
-        "FAILED" -> AccentRed
+        "DELIVERED", "DELIVERED_TO_GATEWAY", "ACKNOWLEDGED", "RECEIVED_BY_RELAY" -> AccentGreen
+        "FAILED", "NO_ROUTE" -> AccentRed
         else -> AccentYellow
     }
 
@@ -746,7 +925,7 @@ fun HistoryCard(message: SOSMessage) {
 }
 
 @Composable
-fun EmergencyCard(message: SOSMessage) {
+fun EmergencyCard(message: SOSMessage, onTap: () -> Unit = {}) {
     val priorityColor = when(message.priority) {
         "CRITICAL" -> AccentRed
         "HIGH" -> PriorityHigh
@@ -754,85 +933,104 @@ fun EmergencyCard(message: SOSMessage) {
         "LOW" -> AccentBlue
         else -> TextMuted
     }
+    val statusColor = when(message.status) {
+        "DELIVERED", "DELIVERED_TO_GATEWAY", "ACKNOWLEDGED", "FORWARDED" -> AccentGreen
+        "FAILED", "NO_ROUTE" -> AccentRed
+        else -> AccentYellow
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = BgCard),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onTap() }
+            .border(1.dp, priorityColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Victim: ", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 14.sp, fontFamily = FontFamily.Default)
-                    Text(message.source_device_id, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 14.sp, fontFamily = Mono)
+                Surface(color = priorityColor.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+                    Text(message.priority, color = priorityColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                 }
-                
-                Surface(
-                    color = priorityColor.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        message.status, 
-                        color = priorityColor, 
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Default,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                Surface(color = statusColor.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) {
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(statusColor))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(message.status, color = statusColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
+            Spacer(modifier = Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(priorityColor))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(message.priority, color = priorityColor, fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Default)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("•", color = TextMuted, fontSize = 12.sp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(message.timestamp, color = TextMuted, fontSize = 12.sp, fontFamily = Mono)
+                Text("Victim: ", color = TextMuted, fontSize = 13.sp)
+                Text(message.source_device_id, color = AccentBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
             }
-            
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(message.message_id, color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(message.message, color = TextPrimary, fontSize = 14.sp, fontFamily = FontFamily.Default)
-            
+            Text("\"${message.message}\"", color = TextPrimary, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = TextMuted.copy(alpha = 0.15f))
+            Spacer(modifier = Modifier.height(12.dp))
+            if (message.latitude != 0.0 && message.longitude != 0.0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.LocationOn, contentDescription = "Location", tint = AccentBlue, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("${"%.4f".format(message.latitude)}, ${"%.4f".format(message.longitude)}", color = AccentBlue, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("±${message.location_accuracy.toInt()}m", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                }
+            } else {
+                Text("LOCATION UNAVAILABLE", color = AccentRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            if (message.route.isNotEmpty()) {
+                Text("Route: ${message.route.joinToString(" → ")}", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Hops: ${message.hopCount} | TTL: ${message.ttl} | Via: BLE", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "Lat: ${"%.4f".format(message.latitude)}, Lng: ${"%.4f".format(message.longitude)} (±${message.location_accuracy}m)", 
-                    color = TextMuted, 
-                    fontSize = 12.sp,
-                    fontFamily = Mono
-                )
-                
-                val context = androidx.compose.ui.platform.LocalContext.current
-                Button(
-                    onClick = {
-                        val uri = android.net.Uri.parse("geo:${message.latitude},${message.longitude}?q=${message.latitude},${message.longitude}(Victim Location)")
-                        val mapIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                        mapIntent.setPackage("com.google.android.apps.maps")
-                        if (mapIntent.resolveActivity(context.packageManager) != null) {
-                            context.startActivity(mapIntent)
-                        } else {
-                            // Fallback if Google Maps is not installed
-                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = priorityColor),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text("📍 Map", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Default)
+                Text(message.timestamp, color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                if (message.latitude != 0.0 && message.longitude != 0.0) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    Button(
+                        onClick = {
+                            val uri = android.net.Uri.parse("geo:${message.latitude},${message.longitude}?q=${message.latitude},${message.longitude}(Victim Location)")
+                            val mapIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                            mapIntent.setPackage("com.google.android.apps.maps")
+                            if (mapIntent.resolveActivity(context.packageManager) != null) {
+                                context.startActivity(mapIntent)
+                            } else {
+                                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("VIEW LOCATION", fontSize = 11.sp, color = BgPrimary, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun DetailRow(label: String, value: String, valueColor: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = TextMuted, fontSize = 12.sp)
+        Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
     }
 }
