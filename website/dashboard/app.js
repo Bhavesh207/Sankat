@@ -536,61 +536,125 @@ document.addEventListener('DOMContentLoaded', function () {
     // MODAL BODY BUILDER
     // ============================================================
     function buildModalBody(inc, events) {
-        const priority = (inc.priority || 'LOW').toUpperCase();
-        let createdStr  = inc.created_at   ? fmtDateTime(inc.created_at)   : 'N/A';
-        let ackStr      = inc.acknowledgedAt ? fmtDateTime(inc.acknowledgedAt) : 'N/A';
-        let dispStr     = inc.dispatchedAt   ? fmtDateTime(inc.dispatchedAt)   : 'N/A';
-        let resolvedStr = inc.resolvedAt     ? fmtDateTime(inc.resolvedAt)     : 'N/A';
-        let lat = inc.latitude  || (inc.location && inc.location.lat)  || 'N/A';
-        let lng = inc.longitude || (inc.location && inc.location.lng)  || 'N/A';
+        const priority    = (inc.priority || 'LOW').toUpperCase();
+        const priorityLow = priority.toLowerCase();
+        const status      = inc.status || 'PENDING';
+        const statusLow   = status.toLowerCase();
 
+        // Parse all timestamps safely
+        const createdStr  = fmtDateTime(inc.created_at);
+        const ackStr      = fmtDateTime(inc.acknowledgedAt);
+        const dispStr     = fmtDateTime(inc.dispatchedAt);
+        const resolvedStr = fmtDateTime(inc.resolvedAt);
+
+        const lat = inc.latitude  || (inc.location && inc.location.lat)  || null;
+        const lng = inc.longitude || (inc.location && inc.location.lng)  || null;
+        const locStr = (lat && lng && lat !== 0 && lng !== 0)
+            ? parseFloat(lat).toFixed(6) + ', ' + parseFloat(lng).toFixed(6)
+            : 'Location unavailable';
+        const accuracy = inc.location_accuracy ? '+-' + inc.location_accuracy + 'm' : '';
+        const mapsLink = (lat && lng && lat !== 0 && lng !== 0)
+            ? '<a href="https://maps.google.com/?q=' + lat + ',' + lng + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;margin-left:10px;">Open in Google Maps</a>'
+            : '';
+
+        const routeStr = (inc.route && inc.route.length > 0) ? inc.route.join(' > ') : 'Direct (no relay)';
+        const resTime  = fmtDuration(inc.resolutionTime);
+        const respTime = fmtDuration(inc.responseTime);
+        const battery  = inc.battery != null ? inc.battery + '%' : 'N/A';
+
+        // Status flow bar
+        const allSteps = ['PENDING', 'ACKNOWLEDGED', 'DISPATCHED', 'RESOLVED'];
+        const currentIdx = allSteps.indexOf(status);
+        const statusFlowHtml = '<div class="status-flow">'
+            + allSteps.map(function(step, i) {
+                let cls = 'sf-step';
+                if (i < currentIdx) cls += ' sf-done';
+                if (i === currentIdx) cls += ' sf-current';
+                return '<div class="' + cls + '">'
+                    + '<div class="sf-circle">' + (i < currentIdx ? '&#10003;' : (i + 1)) + '</div>'
+                    + '<div class="sf-label">' + step + '</div>'
+                    + '</div>'
+                    + (i < allSteps.length - 1 ? '<div class="sf-line' + (i < currentIdx ? ' sf-line-done' : '') + '"></div>' : '');
+            }).join('')
+            + '</div>';
+
+        // Timeline
         const timelineHtml = events.length > 0
             ? events.map(function (ev) {
-                const evTime = ev.timestamp ? fmtDateTime(ev.timestamp) : 'N/A';
+                const evTime   = fmtDateTime(ev.timestamp);
                 const dotClass = dotClassForEvent(ev.eventType);
+                const meta = ev.previousStatus && ev.newStatus
+                    ? '<div class="timeline-meta">' + ev.previousStatus + ' &rarr; ' + ev.newStatus + '</div>'
+                    : '';
                 return '<div class="timeline-item">'
                     + '<div class="timeline-left"><div class="timeline-dot ' + dotClass + '"></div><div class="timeline-line"></div></div>'
                     + '<div class="timeline-content">'
                     +   '<div class="timeline-event">' + (ev.eventType || 'EVENT') + '</div>'
                     +   '<div class="timeline-time">' + evTime + '</div>'
-                    +   (ev.operatorId ? '<div class="timeline-operator">by ' + ev.operatorId + '</div>' : '')
+                    +   (ev.operatorId && ev.operatorId !== 'SYSTEM' ? '<div class="timeline-operator">by ' + ev.operatorId + '</div>' : '<div class="timeline-operator" style="color:var(--text-muted)">System</div>')
+                    +   meta
                     + '</div>'
                     + '</div>';
             }).join('')
-            : '<div style="color:var(--text-muted);">No timeline events recorded.</div>';
+            : '<div style="color:var(--text-muted);font-size:0.85rem;padding:12px 0;">No timeline events recorded yet.</div>';
 
-        const routeStr = (inc.route && inc.route.length > 0) ? inc.route.join(' > ') : 'Direct (no relay)';
-        const resTime  = inc.resolutionTime != null ? fmtDuration(inc.resolutionTime) : 'N/A';
-        const respTime = inc.responseTime   != null ? fmtDuration(inc.responseTime)   : 'N/A';
+        return ''
+            // ── STATUS FLOW ──
+            + '<div class="modal-section">' + statusFlowHtml + '</div>'
 
-        return '<div class="modal-section">'
-            + '<div class="modal-section-title">Incident Info</div>'
-            + '<div class="modal-grid">'
-            +   field('Incident ID',    inc.message_id || inc.id || 'N/A')
-            +   field('Victim Device',  inc.source_device_id || 'N/A')
-            +   field('Priority',       '<span class="badge badge-' + priority.toLowerCase() + '">' + priority + '</span>')
-            +   field('Status',         '<span class="status-badge status-' + (inc.status || 'pending').toLowerCase() + '"><div class="status-dot-small"></div>' + (inc.status || 'N/A') + '</span>')
-            +   field('Message',        '"' + (inc.message || 'Help requested.') + '"')
-            +   field('Route',          routeStr)
-            +   field('Hop Count',      inc.hopCount != null ? inc.hopCount : 'N/A')
-            +   field('TTL',            inc.ttl      != null ? inc.ttl      : 'N/A')
-            + '</div></div>'
+            // ── IDENTITY ──
             + '<div class="modal-section">'
-            + '<div class="modal-section-title">Location</div>'
-            + '<div class="modal-grid">'
-            +   field('Coordinates', lat + ', ' + lng)
-            +   field('Accuracy', inc.location_accuracy ? '+-' + inc.location_accuracy + 'm' : 'N/A')
+            + '<div class="modal-section-title">Incident Identity</div>'
+            + '<div class="modal-grid3">'
+            +   field('Incident ID',   '<span style="color:var(--accent-blue);font-size:0.95rem;font-weight:700;">' + (inc.message_id || inc.id || 'N/A') + '</span>')
+            +   field('Victim Device', '<span style="color:var(--accent-blue);">' + (inc.source_device_id || 'Unknown') + '</span>')
+            +   field('Battery',       battery)
+            +   field('Priority',      '<span class="badge badge-' + priorityLow + '">' + priority + '</span>')
+            +   field('Status',        '<span class="status-badge status-' + statusLow + '" style="font-size:0.8rem;"><div class="status-dot-small"></div>' + status + '</span>')
+            +   field('Type',          inc.type || 'SOS')
             + '</div></div>'
+
+            // ── MESSAGE ──
             + '<div class="modal-section">'
-            + '<div class="modal-section-title">Timestamps & Times</div>'
-            + '<div class="modal-grid">'
-            +   field('Created',          createdStr)
-            +   field('Acknowledged',     ackStr)
-            +   field('Dispatched',       dispStr)
-            +   field('Resolved',         resolvedStr)
-            +   field('Response Time',    respTime)
-            +   field('Resolution Time',  resTime)
+            + '<div class="modal-section-title">Emergency Message</div>'
+            + '<div style="background:rgba(0,0,0,0.3);padding:14px 18px;border-radius:6px;border-left:3px solid var(--accent-red);font-style:italic;font-family:Courier New,monospace;color:var(--text-primary);font-size:0.95rem;line-height:1.6;">'
+            + '"' + (inc.message || 'Help requested.') + '"'
             + '</div></div>'
+
+            // ── LOCATION ──
+            + '<div class="modal-section">'
+            + '<div class="modal-section-title">Location' + mapsLink + '</div>'
+            + '<div class="modal-grid3">'
+            +   field('Coordinates',  locStr + (accuracy ? ' <span style="color:var(--text-muted);font-size:0.78rem;">' + accuracy + '</span>' : ''))
+            +   field('Latitude',     lat ? parseFloat(lat).toFixed(6) : 'N/A')
+            +   field('Longitude',    lng ? parseFloat(lng).toFixed(6) : 'N/A')
+            + '</div></div>'
+
+            // ── RELAY INFO ──
+            + '<div class="modal-section">'
+            + '<div class="modal-section-title">BLE Relay Info</div>'
+            + '<div class="modal-grid3">'
+            +   field('Route',        routeStr)
+            +   field('Hop Count',    inc.hopCount != null ? inc.hopCount + ' hops' : 'Direct')
+            +   field('TTL',          inc.ttl      != null ? inc.ttl : 'N/A')
+            + '</div></div>'
+
+            // ── TIMESTAMPS ──
+            + '<div class="modal-section">'
+            + '<div class="modal-section-title">Timestamps</div>'
+            + '<div class="ts-grid">'
+            +   tsField('Created',        createdStr,  '#5BB0E0')
+            +   tsField('Acknowledged',   ackStr,      '#facc15')
+            +   tsField('Dispatched',     dispStr,     '#f97316')
+            +   tsField('Resolved',       resolvedStr, '#4ade80')
+            + '</div>'
+            + '<div class="modal-grid3" style="margin-top:14px;">'
+            +   field('Response Time',   '<span style="color:var(--accent-yellow);font-weight:700;">' + respTime + '</span>')
+            +   field('Resolution Time', '<span style="color:var(--accent-green);font-weight:700;">' + resTime + '</span>')
+            +   field('Operator',        inc.operatorId || 'N/A')
+            + '</div></div>'
+
+            // ── TIMELINE ──
             + '<div class="modal-section">'
             + '<div class="modal-section-title">Event Timeline</div>'
             + '<div class="timeline">' + timelineHtml + '</div>'
@@ -607,10 +671,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // ============================================================
     // HELPERS
     // ============================================================
-    function fmtDateTime(iso) {
-        if (!iso) return 'N/A';
-        const d = new Date(iso);
-        if (isNaN(d)) return iso;
+    function fmtDateTime(val) {
+        if (!val) return 'N/A';
+        if (val && typeof val === 'object' && val._seconds) {
+            val = new Date(val._seconds * 1000);
+        }
+        const d = new Date(val);
+        if (isNaN(d)) return String(val);
         return d.toLocaleDateString('en-IN') + ' ' + d.toLocaleTimeString('en-US', { hour12: false });
     }
 
